@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Otimizador de DPS – Fio Pala</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{--color-fg:#1f2328;--color-fg-muted:#667085;--color-bg:#fff;--color-panel:#f7f7f4;--color-border-line:#e2e2dc;--color-ok:#1a7f4b;--color-bad:#c0392b;
+--cds-gap-xs:4px;--cds-gap-sm:8px;--cds-gap-md:12px;--cds-gap-lg:16px;--cds-pad-xs:4px;--cds-pad-sm:8px;--cds-pad-md:12px;--cds-pad-lg:16px;--cds-radius:8px;
+--cds-font-size-caption:12px;--cds-font-size-body:14px;--cds-font-size-heading:16px;--cds-font-size-title:26px;--cds-font-weight-medium:500;
+--cds-chart-muted:#b9bcc4;--cds-chart-grid:#ececE7;--cds-chart-reference:#9aa0aa;--cds-chart-status-critical:#c0392b;
+--cds-surface-popover:#fff;--cds-border:#d5d5cf;--cds-shadow-popover:0 4px 14px rgba(0,0,0,.12);--cds-dur-slow:400ms;--cds-ease-out:cubic-bezier(.2,.7,.2,1);
+--font-anthropic-sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--font-anthropic-serif:Georgia,"Times New Roman",serif}
+@media (prefers-color-scheme:dark){:root{--color-fg:#e8e8e3;--color-fg-muted:#9aa0aa;--color-bg:#16171a;--color-panel:#1f2024;--color-border-line:#33353b;--color-ok:#4cc38a;--color-bad:#ff6b5e;--cds-chart-muted:#555a64;--cds-chart-grid:#2b2d33;--cds-chart-reference:#6b717c;--cds-surface-popover:#26282d;--cds-border:#3d4047;--cds-shadow-popover:0 4px 14px rgba(0,0,0,.5)}}
+html,body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(--font-anthropic-sans);font-size:14px}
+.dp-outer{padding:20px 16px}
+.dash-select{font:inherit;color:inherit;background-color:var(--color-panel);border:1px solid var(--color-border-line);border-radius:8px;padding:6px 10px}
+.dash-skeleton{background:var(--cds-chart-grid);border-radius:8px}
+button{font-family:inherit}
+</style><style>
+  .dp-page { max-width: 66rem; margin-inline: auto; font-family: var(--font-anthropic-sans); color: var(--color-fg); font-variant-numeric: tabular-nums; --dp-r: 12px; }
+  .dp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-md); }
+  .dp-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; }
+  .dp-meta { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 4px 0 0; min-height: 1.2em; }
+  .dp-nav { position: sticky; top: 0; z-index: 6; display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0; margin-bottom: var(--cds-gap-md); background: var(--color-bg); border-bottom: 1px solid var(--color-border-line); }
+  .dp-tab, .dp-seg button { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); background: transparent; border: 1px solid transparent; border-radius: 999px; padding: 5px 14px; cursor: pointer; transition: background var(--cds-dur-fast, 120ms), color 120ms; }
+  .dp-tab:hover, .dp-seg button:hover { background: var(--cds-chart-grid); color: var(--color-fg); }
+  .dp-tab[aria-selected="true"] { background: var(--dp-accent, #4a7bd0); color: #fff; }
+  .dp-tools { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-md); align-items: center; }
+  .dp-seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--color-border-line); border-radius: 999px; background: var(--color-panel); }
+  .dp-seg button { padding: 3px 12px; }
+  .dp-seg button[aria-pressed="true"] { background: var(--cds-chart-grid); color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+  .dp-lab { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin-right: 6px; }
+  .dp-take { font-size: var(--cds-font-size-heading); margin: 0 0 var(--cds-gap-md); min-height: 1.4em; }
+  .dp-take b { font-weight: 500; }
+  .dp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-md); min-height: 7rem; }
+  .dp-hero { grid-column: span 2; background: linear-gradient(135deg, color-mix(in srgb, var(--dp-accent, #4a7bd0) 16%, var(--color-panel)), var(--color-panel)); border: 1px solid color-mix(in srgb, var(--dp-accent, #4a7bd0) 40%, var(--color-border-line)); border-radius: var(--dp-r); padding: var(--cds-pad-lg); }
+  @media (max-width: 34rem) { .dp-hero { grid-column: auto; } }
+  .dp-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--dp-r); padding: var(--cds-pad-md) var(--cds-pad-lg); transition: transform 150ms, box-shadow 150ms; }
+  .dp-tile:hover { transform: translateY(-2px); box-shadow: var(--cds-shadow-popover); }
+  .dp-tile-l { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .dp-tile-v { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.2; margin: 2px 0; }
+  .dp-hero .dp-tile-v { font-size: 2.6rem; }
+  .dp-tile-s { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .dp-badge { display: inline-block; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); color: var(--color-ok); border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; margin-left: 8px; vertical-align: middle; }
+  .dp-up { color: var(--color-ok); }
+  .dp-mini { margin-top: 10px; display: grid; gap: 4px; }
+  .dp-mini div { height: 6px; border-radius: 3px; }
+  .dp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-md); }
+  .dp-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--dp-r); padding: var(--cds-pad-lg); min-width: 0; margin-bottom: var(--cds-gap-md); }
+  .dp-grid > .dp-card { margin-bottom: 0; }
+  .dp-card h3 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 2px; }
+  .dp-note { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 0 0 var(--cds-gap-md); }
+  .dp-legend { display: flex; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0 0 var(--cds-gap-sm); }
+  .dp-sw { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .dp-sw-a { background: var(--cds-chart-muted); }
+  .dp-sw-b { background: var(--dp-accent, #4a7bd0); }
+  .dp-box { position: relative; min-height: 6rem; }
+  .dp-row { display: grid; grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr) auto; gap: var(--cds-gap-sm); align-items: center; padding: 7px 6px; border-radius: 8px; font-size: var(--cds-font-size-body); transition: opacity 150ms, background 120ms; }
+  .dp-row[data-tip]:hover { background: var(--cds-chart-grid); }
+  .dp-click { cursor: pointer; }
+  .dp-name { overflow-wrap: anywhere; display: flex; align-items: center; gap: 8px; }
+  .dp-name small { display: block; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .dp-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .dp-bars { display: grid; gap: 3px; min-width: 0; }
+  .dp-line { display: flex; align-items: center; gap: 6px; min-width: 0; height: 14px; }
+  .dp-bar { height: 12px; border-radius: 4px; flex: none; animation: dp-grow var(--cds-dur-slow, 400ms) var(--cds-ease-out, ease-out); transform-origin: left; }
+  @media (prefers-reduced-motion: reduce) { .dp-bar { animation: none; } }
+  @keyframes dp-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .dp-bar-a { background: var(--cds-chart-muted); }
+  .dp-bar-b { background: var(--dp-accent, #4a7bd0); }
+  .dp-val { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); white-space: nowrap; }
+  .dp-delta { font-size: var(--cds-font-size-caption); white-space: nowrap; text-align: right; min-width: 4.5rem; }
+  .dp-div { position: relative; height: 16px; }
+  .dp-div::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px solid var(--cds-chart-reference); }
+  .dp-div .dp-bar { position: absolute; top: 2px; }
+  .dp-stack { display: flex; height: 34px; border-radius: 8px; overflow: hidden; gap: 2px; }
+  .dp-seg-s { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; overflow: hidden; white-space: nowrap; cursor: pointer; transition: opacity 150ms, flex-basis 400ms; }
+  .dp-seg-s:hover { filter: brightness(1.12); }
+  .dp-stk-l { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 10px 0 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .dp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .dp-chip { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cds-font-size-caption); border: 1px solid var(--color-border-line); border-radius: 999px; padding: 2px 10px; cursor: pointer; transition: opacity 150ms, background 120ms; }
+  .dp-chip:hover { background: var(--cds-chart-grid); }
+  .dp-chip[aria-pressed="true"] { border-color: var(--color-fg); }
+  .dp-tip { position: absolute; z-index: 5; pointer-events: none; white-space: pre-line; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); max-width: 16rem; }
+  .dp-tip[hidden] { display: none; }
+  .dp-scroll { overflow-x: auto; }
+  .dp-tbl { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); }
+  .dp-tbl th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); padding: 6px 10px 6px 0; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .dp-tbl td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--cds-chart-grid); vertical-align: top; }
+  .dp-tbl .dp-n { text-align: right; white-space: nowrap; }
+  .dp-tbl tr.dp-pick { cursor: pointer; }
+  .dp-tbl tr.dp-pick:hover td { background: var(--cds-chart-grid); }
+  .dp-tbl tr[aria-current="true"] td { font-weight: var(--cds-font-weight-medium); background: color-mix(in srgb, var(--dp-accent, #4a7bd0) 10%, transparent); }
+  .dp-tbl tr.dp-chg td { background: color-mix(in srgb, var(--dp-accent, #4a7bd0) 10%, transparent); }
+  .dp-tag { display: inline-block; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); border: 1px solid var(--color-border-line); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
+  .dp-wheels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--cds-gap-lg); }
+  .dp-wh-t { font-weight: var(--cds-font-weight-medium); margin-bottom: 6px; }
+  .dp-wh { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem 10px; margin-top: 1rem; }
+  .dp-q { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; position: relative; }
+  .dp-c { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; border-radius: 4px; border: 1px solid var(--cds-chart-grid); transition: transform 100ms; }
+  .dp-c:hover { transform: scale(1.12); position: relative; z-index: 2; border-color: var(--color-fg); }
+  .dp-c.dp-diff { outline: 2px dashed var(--color-fg); outline-offset: -3px; }
+  .dp-ql { position: absolute; top: -0.95rem; left: 0; font-size: 10px; color: var(--color-fg-muted); }
+  .dp-wh-s { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-top: 10px; display: grid; gap: 2px; }
+  .dp-wh-s code { overflow-wrap: anywhere; font-size: 11px; }
+  .dp-flow { display: grid; gap: 6px; }
+  .dp-step { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--color-border-line); border-radius: 10px; }
+  .dp-step b { font-weight: var(--cds-font-weight-medium); }
+  .dp-num { width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--cds-chart-grid); display: inline-flex; align-items: center; justify-content: center; font-size: var(--cds-font-size-caption); flex: none; }
+  .dp-mob { margin-left: auto; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); white-space: nowrap; }
+  .dp-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: var(--cds-gap-lg); }
+  .dp-two h4 { margin: 0 0 8px; font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+  .dp-fail { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 4rem; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .dp-fail i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+  .dp-foot { margin-top: var(--cds-gap-lg); color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .dp-foot summary { cursor: pointer; }
+  .dp-foot p { margin: 6px 0; }
+  [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+  @media (max-width: 30rem) { .dp-row { grid-template-columns: 1fr auto; } .dp-row .dp-bars { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+</head><body><div class="dp-outer">
+
+
+<div class="dp-page">
+  <div class="dp-head">
+    <div>
+      <h1 class="dp-title">Otimizador de DPS</h1>
+      <p class="dp-meta" data-draw="meta" data-source="runs">—</p>
+    </div>
+    <select class="dash-select" data-draw="run" data-source="runs" aria-label="Execução"></select>
+  </div>
+
+  <nav class="dp-nav" role="tablist" aria-label="Seções">
+    <button class="dp-tab" role="tab" data-tab="geral" aria-selected="true">Visão geral</button>
+    <button class="dp-tab" role="tab" data-tab="dano" aria-selected="false">Dano</button>
+    <button class="dp-tab" role="tab" data-tab="robustez" aria-selected="false">Robustez</button>
+    <button class="dp-tab" role="tab" data-tab="build" aria-selected="false">Build</button>
+    <button class="dp-tab" role="tab" data-tab="execucoes" aria-selected="false">Execuções</button>
+  </nav>
+
+  <section id="geral" data-panel="geral">
+    <p class="dp-take" data-draw="takeaway" data-source="runs blocks">—</p>
+    <div class="dp-kpis" data-draw="kpis" data-source="runs"></div>
+    <div class="dp-card" id="postura">
+      <h3>Postura recomendada</h3>
+      <p class="dp-note">Qual postura (stance) usar com a build recomendada, e quanto cada uma rende na sua Wheel atual.</p>
+      <div class="dp-box" data-draw="stance" data-source="runs posture blocks"></div>
+    </div>
+    <div class="dp-card">
+      <h3>Composição do DPS</h3>
+      <p class="dp-note">Quanto cada fonte contribui, na build atual e na recomendada. Clique numa fonte para destacá-la em todos os gráficos.</p>
+      <div class="dp-box" data-draw="comp" data-source="sources"></div>
+    </div>
+    <div class="dp-card">
+      <h3>Quanto vale cada bloco</h3>
+      <p class="dp-note">Perda de DPS ao trocar só aquele bloco da build recomendada pelo que você usa hoje.</p>
+      <div class="dp-box" data-draw="blocks" data-source="blocks"></div>
+    </div>
+  </section>
+
+  <section id="dano" data-panel="dano" hidden>
+    <div class="dp-tools">
+      <span><span class="dp-lab">Mostrar</span><span class="dp-seg"><button data-param="mode" data-value="valores" aria-pressed="true">Valores</button><button data-param="mode" data-value="diferenca" aria-pressed="false">Diferença</button></span></span>
+      <span><span class="dp-lab">Ordenar por</span><span class="dp-seg"><button data-param="sort" data-value="dps" aria-pressed="true">Maior dano</button><button data-param="sort" data-value="mudanca" aria-pressed="false">Maior mudança</button></span></span>
+    </div>
+    <div class="dp-card">
+      <h3>DPS por fonte</h3>
+      <p class="dp-note">Passe o mouse para ver os números; clique numa linha para destacá-la.</p>
+      <div class="dp-legend"><span><i class="dp-sw dp-sw-a"></i>Atual</span><span><i class="dp-sw dp-sw-b"></i>Recomendada</span></div>
+      <div class="dp-box" data-draw="sources" data-source="sources"></div>
+    </div>
+  </section>
+
+  <section id="robustez" data-panel="robustez" hidden>
+    <div class="dp-grid">
+      <div class="dp-card">
+        <h3>DPS por densidade de monstros</h3>
+        <p class="dp-note">A recomendação se mantém com menos ou mais criaturas por vez?</p>
+        <div class="dp-legend"><span><i class="dp-sw dp-sw-a"></i>Atual</span><span><i class="dp-sw dp-sw-b"></i>Recomendada</span></div>
+        <div class="dp-box" data-draw="density" data-source="density runs"></div>
+      </div>
+      <div class="dp-card">
+        <h3>Alternativas próximas</h3>
+        <p class="dp-note">Outras builds testadas, comparadas com a melhor.</p>
+        <div class="dp-box dp-scroll" data-draw="alts" data-source="alternatives"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="build" data-panel="build" hidden>
+    <div class="dp-card">
+      <h3>Wheel</h3>
+      <p class="dp-note">Pontos por slot. Cor mais forte, mais pontos. O contorno tracejado marca o que mudou em relação à atual.</p>
+      <div class="dp-box" data-draw="wheel" data-source="wheel runs"></div>
+    </div>
+    <div class="dp-grid">
+      <div class="dp-card">
+        <h3>Rotação do helper</h3>
+        <p class="dp-note">De cima para baixo; o número é o mínimo de monstros para lançar.</p>
+        <div class="dp-box" data-draw="rotation" data-source="rotation"></div>
+      </div>
+      <div class="dp-card">
+        <h3>Charms</h3>
+        <p class="dp-note">Por criatura, com a parte das mortes da hunt.</p>
+        <div class="dp-box dp-scroll" data-draw="charms" data-source="charms"></div>
+      </div>
+    </div>
+    <div class="dp-card">
+      <h3>Proficiência da arma</h3>
+      <p class="dp-note">Escolha por nível. As linhas destacadas mudam em relação à atual.</p>
+      <div class="dp-box dp-scroll" data-draw="prof" data-source="proficiency"></div>
+    </div>
+  </section>
+
+  <section id="execucoes" data-panel="execucoes" hidden>
+    <div class="dp-card">
+      <h3>Comparar execuções</h3>
+      <p class="dp-note">Clique numa linha para ver o detalhe daquela execução em todas as abas.</p>
+      <div class="dp-box dp-scroll" data-draw="runs" data-source="runs"></div>
+    </div>
+  </section>
+
+  <details class="dp-foot">
+    <summary>Notas do modelo</summary>
+    <p>O DPS é uma simulação, não o dano medido: ela não inclui amplification, momentum e leech. Leia as diferenças em porcentagem.</p>
+    <p>Regras do servidor BalrogOT aplicadas: sangramento do Divine Empowerment (7,5% do nível por segundo, só contra monstros, sem crítico nem charm). Esse trecho está marcado como não verificado no resultado.</p>
+    <p>Os DPS vêm do cálculo oficial (TibiaTools), conferido com a API ao vivo.</p>
+  </details>
+</div>
+
+
+
+</div>
+<script>const DATA={"runs": [{"run": "r5", "label": "Fio Pala – Brachiodemon · 08/11/2026", "name": "Fio Pala - Brachiodemon", "vocation": "paladin", "hunt": "Hunting_Session_2026-11-08_1794147246.json", "mode": "fast", "density": 10.0, "budget": 1587, "observed_dps": 9743.9, "dps_atual": 9222.9, "dps_melhor": 9753.7, "gain_pct": 5.76, "stance_atual": "Divine Defiance", "stance_melhor": "Sharpshooter", "stages_atual": "TR 2 · BL 2", "stages_melhor": "TR 3 · BL 3", "wheel_bonus_atual": 22, "wheel_bonus_melhor": 44, "wheel_code": "P0Y2BgSJl2goGBwTuFQYmB2YghJYXBCMhlSPEGEiempQBJNW4lHUENNkFNAyklAA", "gem_set": "preset Boss + gemas de Físico", "evals": 7910, "runtime_s": 209}], "sources": [{"run": "r5", "build": "atual", "source": "Auto-attack", "dps": 3088.5}, {"run": "r5", "build": "atual", "source": "Divine Caldera", "dps": 3056.8}, {"run": "r5", "build": "atual", "source": "Divine Grenade", "dps": 668.8}, {"run": "r5", "build": "atual", "source": "Divine Barrage", "dps": 2233.2}, {"run": "r5", "build": "atual", "source": "Divine Empowerment (sangramento)", "dps": 175.6}, {"run": "r5", "build": "melhor", "source": "Auto-attack", "dps": 3882.0}, {"run": "r5", "build": "melhor", "source": "Divine Caldera", "dps": 2400.9}, {"run": "r5", "build": "melhor", "source": "Divine Grenade", "dps": 1029.7}, {"run": "r5", "build": "melhor", "source": "Ethereal Barrage", "dps": 2191.0}, {"run": "r5", "build": "melhor", "source": "Divine Empowerment (sangramento)", "dps": 250.3}], "blocks": [{"run": "r5", "block": "Wheel", "dps_without": 9252.1, "loss_pct": 5.14}, {"run": "r5", "block": "Rotação", "dps_without": 9600.8, "loss_pct": 1.57}, {"run": "r5", "block": "Charms", "dps_without": 9753.7, "loss_pct": 0.0}, {"run": "r5", "block": "Proficiência", "dps_without": 9731.7, "loss_pct": 0.23}, {"run": "r5", "block": "Postura", "dps_without": 9096.3, "loss_pct": 6.74}], "density": [{"run": "r5", "density": 6, "atual": 5587.2, "melhor": 5965.9, "gain_pct": 6.78}, {"run": "r5", "density": 10, "atual": 9222.9, "melhor": 9753.7, "gain_pct": 5.76}, {"run": "r5", "density": 14, "atual": 12551.6, "melhor": 13278.0, "gain_pct": 5.79}], "rotation": [{"run": "r5", "build": "atual", "pos": 1, "spell": "Divine Grenade", "mobs": 4}, {"run": "r5", "build": "atual", "pos": 2, "spell": "Divine Empowerment", "mobs": 2}, {"run": "r5", "build": "atual", "pos": 3, "spell": "Divine Caldera", "mobs": 2}, {"run": "r5", "build": "atual", "pos": 4, "spell": "Divine Barrage", "mobs": 2}, {"run": "r5", "build": "atual", "pos": 5, "spell": "Ethereal Barrage", "mobs": 2}, {"run": "r5", "build": "atual", "pos": 6, "spell": "Strong Ethereal Spear", "mobs": 1}, {"run": "r5", "build": "melhor", "pos": 1, "spell": "Divine Empowerment", "mobs": 6}, {"run": "r5", "build": "melhor", "pos": 2, "spell": "Divine Grenade", "mobs": 9}, {"run": "r5", "build": "melhor", "pos": 3, "spell": "Divine Caldera", "mobs": 4}, {"run": "r5", "build": "melhor", "pos": 4, "spell": "Ethereal Barrage", "mobs": 2}, {"run": "r5", "build": "melhor", "pos": 5, "spell": "Strong Ethereal Spear", "mobs": 5}], "charms": [{"run": "r5", "creature": "Brachiodemon", "ratio_pct": 47.5, "charm_atual": "Divine Wrath (T3)", "charm_melhor": "Divine Wrath (T3)"}, {"run": "r5", "creature": "Infernal Demon", "ratio_pct": 36.6, "charm_atual": "Freeze (T3)", "charm_melhor": "Freeze (T3)"}, {"run": "r5", "creature": "Infernal Phantom", "ratio_pct": 15.9, "charm_atual": "Poison (T3)", "charm_melhor": "Poison (T3)"}], "proficiency": [{"run": "r5", "level": 1, "atual": "+8.00% critical extra damage", "melhor": "+8.00% critical extra damage", "mudou": 0}, {"run": "r5", "level": 2, "atual": "+6.00% of your highest combat skill as extra damage for auto-attacks", "melhor": "+6.00% critical extra damage", "mudou": 1}, {"run": "r5", "level": 3, "atual": "+4.40% of your highest combat skill as extra damage for auto-attacks", "melhor": "+4.40% of your highest combat skill as extra damage for auto-attacks", "mudou": 0}, {"run": "r5", "level": 4, "atual": "+12% armor penetration", "melhor": "+2 attack", "mudou": 1}, {"run": "r5", "level": 5, "atual": "+12.00% of your Distance Fighting as extra damage for your spells", "melhor": "+12.00% of your Distance Fighting as extra damage for your spells", "mudou": 0}, {"run": "r5", "level": 6, "atual": "+9% Physical pierce", "melhor": "+9% Physical pierce", "mudou": 0}, {"run": "r5", "level": 7, "atual": "+6.00% damage against targets below 30% hit points", "melhor": "+6.00% damage against targets below 30% hit points", "mudou": 0}], "wheel": [{"run": "r5", "build": "atual", "row": 0, "col": 0, "pts": 0}, {"run": "r5", "build": "atual", "row": 0, "col": 1, "pts": 0}, {"run": "r5", "build": "atual", "row": 0, "col": 2, "pts": 0}, {"run": "r5", "build": "atual", "row": 0, "col": 3, "pts": 0}, {"run": "r5", "build": "atual", "row": 0, "col": 4, "pts": 150}, {"run": "r5", "build": "atual", "row": 0, "col": 5, "pts": 160}, {"run": "r5", "build": "atual", "row": 1, "col": 0, "pts": 0}, {"run": "r5", "build": "atual", "row": 1, "col": 1, "pts": 0}, {"run": "r5", "build": "atual", "row": 1, "col": 2, "pts": 0}, {"run": "r5", "build": "atual", "row": 1, "col": 3, "pts": 75}, {"run": "r5", "build": "atual", "row": 1, "col": 4, "pts": 100}, {"run": "r5", "build": "atual", "row": 1, "col": 5, "pts": 0}, {"run": "r5", "build": "atual", "row": 2, "col": 0, "pts": 100}, {"run": "r5", "build": "atual", "row": 2, "col": 1, "pts": 0}, {"run": "r5", "build": "atual", "row": 2, "col": 2, "pts": 0}, {"run": "r5", "build": "atual", "row": 2, "col": 3, "pts": 50}, {"run": "r5", "build": "atual", "row": 2, "col": 4, "pts": 0}, {"run": "r5", "build": "atual", "row": 2, "col": 5, "pts": 100}, {"run": "r5", "build": "atual", "row": 3, "col": 0, "pts": 100}, {"run": "r5", "build": "atual", "row": 3, "col": 1, "pts": 0}, {"run": "r5", "build": "atual", "row": 3, "col": 2, "pts": 50}, {"run": "r5", "build": "atual", "row": 3, "col": 3, "pts": 0}, {"run": "r5", "build": "atual", "row": 3, "col": 4, "pts": 0}, {"run": "r5", "build": "atual", "row": 3, "col": 5, "pts": 0}, {"run": "r5", "build": "atual", "row": 4, "col": 0, "pts": 0}, {"run": "r5", "build": "atual", "row": 4, "col": 1, "pts": 100}, {"run": "r5", "build": "atual", "row": 4, "col": 2, "pts": 75}, {"run": "r5", "build": "atual", "row": 4, "col": 3, "pts": 75}, {"run": "r5", "build": "atual", "row": 4, "col": 4, "pts": 100}, {"run": "r5", "build": "atual", "row": 4, "col": 5, "pts": 0}, {"run": "r5", "build": "atual", "row": 5, "col": 0, "pts": 200}, {"run": "r5", "build": "atual", "row": 5, "col": 1, "pts": 150}, {"run": "r5", "build": "atual", "row": 5, "col": 2, "pts": 0}, {"run": "r5", "build": "atual", "row": 5, "col": 3, "pts": 0}, {"run": "r5", "build": "atual", "row": 5, "col": 4, "pts": 0}, {"run": "r5", "build": "atual", "row": 5, "col": 5, "pts": 0}, {"run": "r5", "build": "melhor", "row": 0, "col": 0, "pts": 0}, {"run": "r5", "build": "melhor", "row": 0, "col": 1, "pts": 0}, {"run": "r5", "build": "melhor", "row": 0, "col": 2, "pts": 0}, {"run": "r5", "build": "melhor", "row": 0, "col": 3, "pts": 100}, {"run": "r5", "build": "melhor", "row": 0, "col": 4, "pts": 150}, {"run": "r5", "build": "melhor", "row": 0, "col": 5, "pts": 200}, {"run": "r5", "build": "melhor", "row": 1, "col": 0, "pts": 0}, {"run": "r5", "build": "melhor", "row": 1, "col": 1, "pts": 0}, {"run": "r5", "build": "melhor", "row": 1, "col": 2, "pts": 0}, {"run": "r5", "build": "melhor", "row": 1, "col": 3, "pts": 75}, {"run": "r5", "build": "melhor", "row": 1, "col": 4, "pts": 100}, {"run": "r5", "build": "melhor", "row": 1, "col": 5, "pts": 0}, {"run": "r5", "build": "melhor", "row": 2, "col": 0, "pts": 34}, {"run": "r5", "build": "melhor", "row": 2, "col": 1, "pts": 0}, {"run": "r5", "build": "melhor", "row": 2, "col": 2, "pts": 3}, {"run": "r5", "build": "melhor", "row": 2, "col": 3, "pts": 50}, {"run": "r5", "build": "melhor", "row": 2, "col": 4, "pts": 0}, {"run": "r5", "build": "melhor", "row": 2, "col": 5, "pts": 100}, {"run": "r5", "build": "melhor", "row": 3, "col": 0, "pts": 100}, {"run": "r5", "build": "melhor", "row": 3, "col": 1, "pts": 0}, {"run": "r5", "build": "melhor", "row": 3, "col": 2, "pts": 50}, {"run": "r5", "build": "melhor", "row": 3, "col": 3, "pts": 0}, {"run": "r5", "build": "melhor", "row": 3, "col": 4, "pts": 0}, {"run": "r5", "build": "melhor", "row": 3, "col": 5, "pts": 0}, {"run": "r5", "build": "melhor", "row": 4, "col": 0, "pts": 0}, {"run": "r5", "build": "melhor", "row": 4, "col": 1, "pts": 100}, {"run": "r5", "build": "melhor", "row": 4, "col": 2, "pts": 75}, {"run": "r5", "build": "melhor", "row": 4, "col": 3, "pts": 0}, {"run": "r5", "build": "melhor", "row": 4, "col": 4, "pts": 0}, {"run": "r5", "build": "melhor", "row": 4, "col": 5, "pts": 0}, {"run": "r5", "build": "melhor", "row": 5, "col": 0, "pts": 200}, {"run": "r5", "build": "melhor", "row": 5, "col": 1, "pts": 150}, {"run": "r5", "build": "melhor", "row": 5, "col": 2, "pts": 100}, {"run": "r5", "build": "melhor", "row": 5, "col": 3, "pts": 0}, {"run": "r5", "build": "melhor", "row": 5, "col": 4, "pts": 0}, {"run": "r5", "build": "melhor", "row": 5, "col": 5, "pts": 0}], "alternatives": [{"run": "r5", "rank": 1, "dps": 9753.7, "vs_best_pct": -0.0, "stages": "TR 3 · BL 3", "rotation": "Divine Empowerment≥8, Divine Grenade≥9, Divine Caldera≥4, Ethereal Barrage≥2, Strong Ethereal Spear≥5"}, {"run": "r5", "rank": 2, "dps": 9526.4, "vs_best_pct": -2.33, "stages": "TR 2 · BL 3", "rotation": "Divine Caldera≥3, Divine Empowerment≥8, Divine Grenade≥8, Divine Barrage≥1, Ethereal Barrage≥8"}, {"run": "r5", "rank": 3, "dps": 9476.2, "vs_best_pct": -2.85, "stages": "TR 2 · BL 3", "rotation": "Divine Grenade≥4, Divine Empowerment≥7, Divine Barrage≥1, Divine Caldera≥4, Ethereal Barrage≥4, Strong Ethereal Spear≥5"}], "posture": [{"run": "r5", "stance": "Sharpshooter", "dps": 9353.3}, {"run": "r5", "stance": "Divine Defiance", "dps": 9215.2}, {"run": "r5", "stance": "Sem postura", "dps": 8673.1}]};</script>
+<script>
+window.dash=(function(){const D=DATA;let P={};const draws=[],cbs=[];
+const colors=['#4a7bd0','#d9822b','#3aa17e','#b455b6','#d1495b','#8a8f98','#c9a227','#2e9cca'];
+const data=(id)=>{const r=D[id];return r?{status:'ok',data:r,columns:Object.keys(r[0]||{}),message:'',refreshing:false,meta:[]}:{status:'missing',data:[]}};
+const run=()=>draws.forEach(([n,fn])=>document.querySelectorAll('[data-draw="'+n+'"]').forEach(el=>fn(el)));
+const all=()=>{cbs.forEach(f=>f());run()};
+return{colors,data,params:()=>({...P}),setParams(o){Object.assign(P,o);Object.keys(P).forEach(k=>{if(P[k]==null)delete P[k]});all()},resetParams(){P={};all()},onData(f){cbs.push(f);f()},draw(n,fn){draws.push([n,fn])},setLink(n){try{history.replaceState(null,'','#'+n)}catch(e){}},calc(){},loader(){},refresh(){},__start(){all()}}})();
+</script>
+<script>
+(function () {
+  const NF = (n, d = 1) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const SG = (n, d = 1) => (n > 0 ? '+' : n < 0 ? '−' : '') + NF(Math.abs(n), d);
+  const PCT = (n, d = 1) => SG(n, d) + '%';
+  const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const accent = () => dash.colors[0];
+  try { document.querySelector('.dp-page').style.setProperty('--dp-accent', accent()); } catch (e) {}
+
+  /* ---- abas ---- */
+  const tabs = [...document.querySelectorAll('.dp-tab')];
+  const panels = [...document.querySelectorAll('[data-panel]')];
+  function showTab(name) {
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => { showTab(t.dataset.tab); dash.setLink(t.dataset.tab); }));
+  const named = document.getElementById(location.hash.slice(1));
+  if (named && named.dataset.panel) showTab(named.dataset.panel);
+
+  /* ---- controles segmentados ---- */
+  const DEF = { mode: 'valores', sort: 'dps' };
+  const P = (k) => dash.params()[k] ?? DEF[k];
+  document.querySelectorAll('[data-param]').forEach((b) => b.addEventListener('click', () => dash.setParams({ [b.dataset.param]: b.dataset.value })));
+  dash.onData(() => {
+    document.querySelectorAll('[data-param]').forEach((b) => b.setAttribute('aria-pressed', String(P(b.dataset.param) === b.dataset.value)));
+  });
+
+  const fail = () => { const d = h('div', 'dp-fail'); d.append(h('i'), h('span', null, 'Falha ao carregar')); return d; };
+  function gate(el, ids) {
+    const gs = ids.map((i) => dash.data(i));
+    if (gs.some((g) => ['error', 'connect', 'declined', 'missing'].includes(g.status))) { el.replaceChildren(fail()); return false; }
+    if (gs.some((g) => g.status !== 'ok')) { el.replaceChildren(); el.classList.add('dash-skeleton'); return false; }
+    el.classList.remove('dash-skeleton');
+    return true;
+  }
+  function cur() {
+    const g = dash.data('runs');
+    if (g.status !== 'ok' || !g.data.length) return null;
+    const p = dash.params().run;
+    return g.data.find((r) => r.run === p) || g.data[g.data.length - 1];
+  }
+  const rowsOf = (id, run) => dash.data(id).data.filter((r) => r.run === run);
+  const focus = () => dash.params().focus || null;
+  const toggleFocus = (n) => dash.setParams({ focus: focus() === n ? null : n });
+  const dim = (e, name) => { if (focus() && focus() !== name) e.style.opacity = '0.3'; };
+  function colorOf(rows) {
+    const names = [...new Set(rows.map((x) => x.source))].sort();
+    return (n) => dash.colors[names.indexOf(n) % dash.colors.length];
+  }
+
+  function tips(root, tip) {
+    root.style.position = 'relative';
+    root.onmousemove = (e) => {
+      const t = e.target.closest('[data-tip]');
+      if (!t) { tip.hidden = true; return; }
+      tip.textContent = t.getAttribute('data-tip');
+      tip.hidden = false;
+      const r = root.getBoundingClientRect();
+      const x = Math.min(Math.max(e.clientX - r.left + 12, 0), Math.max(r.width - tip.offsetWidth - 4, 0));
+      tip.style.left = x + 'px';
+      tip.style.top = Math.max(e.clientY - r.top + 14, 0) + 'px';
+    };
+    root.onmouseleave = () => { tip.hidden = true; };
+  }
+  const mkTip = () => { const t = h('div', 'dp-tip'); t.hidden = true; return t; };
+  const bar = (cls, w, color) => { const b = h('div', 'dp-bar ' + cls); b.style.width = w + '%'; if (color) b.style.background = color; return b; };
+  const line = (cls, w, label, color) => { const l = h('div', 'dp-line'); if (w > 0) l.append(bar(cls, Math.max(w, 0.8), color)); l.append(h('span', 'dp-val', label)); return l; };
+  const thead = (t, cols, numIdx = []) => { const th = h('thead'); const hr = h('tr'); cols.forEach((c, i) => hr.append(h('th', numIdx.includes(i) ? 'dp-n' : null, c))); th.append(hr); t.append(th); };
+  function keyClick(e, fn) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } }
+
+  /* ---- topo ---- */
+  dash.draw('run', (sel) => {
+    const g = dash.data('runs');
+    sel.replaceChildren(...(g.status === 'ok' ? g.data : []).map((r) => new Option(r.label, r.run)));
+    const r = cur();
+    if (r) sel.value = r.run;
+    sel.onchange = () => dash.setParams({ run: sel.value });
+  });
+
+  dash.draw('meta', (el) => {
+    if (!gate(el, ['runs'])) return;
+    const r = cur();
+    el.textContent = `${r.name} · ${r.vocation} · modo ${r.mode} · ${NF(r.density, 0)} monstros · Wheel de ${NF(r.budget, 0)} pts`;
+  });
+
+  dash.draw('takeaway', (el) => {
+    if (!gate(el, ['runs', 'blocks'])) return;
+    const r = cur();
+    const top = rowsOf('blocks', r.run).sort((a, b) => b.loss_pct - a.loss_pct)[0];
+    el.replaceChildren();
+    el.append('A build recomendada rende ', h('b', 'dp-up', PCT(r.gain_pct)), ` de DPS (${NF(r.dps_melhor)} contra ${NF(r.dps_atual)}). `);
+    if (top) el.append(`O bloco que mais pesa é ${top.block.toLowerCase()}, com ${NF(top.loss_pct, 2)}% de perda se voltar ao atual.`);
+  });
+
+  dash.draw('kpis', (el) => {
+    if (!gate(el, ['runs'])) return;
+    const r = cur();
+    const tile = (l, v, s) => { const t = h('div', 'dp-tile'); t.append(h('div', 'dp-tile-l', l), h('div', 'dp-tile-v', v), h('div', 'dp-tile-s', s)); return t; };
+    const hero = h('div', 'dp-hero dp-tile');
+    const vv = h('div', 'dp-tile-v', NF(r.dps_melhor));
+    vv.append(h('span', 'dp-badge', PCT(r.gain_pct)));
+    const mini = h('div', 'dp-mini');
+    const mx = Math.max(r.dps_melhor, r.dps_atual, r.observed_dps);
+    const mb = (w, c) => { const d = h('div'); d.style.width = (w / mx * 100) + '%'; d.style.background = c; return d; };
+    mini.append(mb(r.dps_atual, 'var(--cds-chart-muted)'), mb(r.dps_melhor, accent()));
+    hero.append(h('div', 'dp-tile-l', 'DPS da build recomendada'), vv, h('div', 'dp-tile-s', `contra ${NF(r.dps_atual)} da build atual, a ${NF(r.density, 0)} monstros`), mini);
+    el.replaceChildren(hero,
+      tile('DPS observado na hunt', NF(r.observed_dps), 'Medido; o modelo omite amplification, momentum e leech'),
+      tile('Postura recomendada', r.stance_melhor, r.stance_atual === r.stance_melhor ? 'Já é a sua postura atual' : `Trocar de ${r.stance_atual} para ${r.stance_melhor}`));
+  });
+
+  /* ---- postura ---- */
+  dash.draw('stance', (el) => {
+    if (!gate(el, ['runs', 'posture', 'blocks'])) return;
+    const r = cur();
+    const rows = rowsOf('posture', r.run).sort((a, b) => b.dps - a.dps);
+    const blk = rowsOf('blocks', r.run).find((x) => x.block === 'Postura');
+    const same = r.stance_atual === r.stance_melhor;
+    const ban = h('div', 'dp-tile');
+    ban.style.marginBottom = '12px';
+    const t1 = h('div', 'dp-tile-l', same ? 'Mantenha a postura' : 'Troque a postura');
+    const v = h('div', 'dp-tile-v', r.stance_melhor);
+    if (blk && blk.loss_pct > 0 && !same) v.append(h('span', 'dp-badge', PCT(blk.loss_pct, 2) .replace('+', '+') + ' de DPS'));
+    const t2 = h('div', 'dp-tile-s', same ? 'É a mesma que você já usa.' : `Em vez de ${r.stance_atual}, que é a sua atual.`);
+    ban.append(t1, v, t2);
+    const max = d3.max(rows, (x) => x.dps) || 1;
+    const tip = mkTip();
+    const frag = rows.map((x) => {
+      const row = h('div', 'dp-row');
+      row.setAttribute('data-tip', `${x.stance}\n${NF(x.dps)} DPS na Wheel atual`);
+      const nm = h('div', 'dp-name', x.stance);
+      if (x.stance === r.stance_melhor) nm.append(h('span', 'dp-tag', 'recomendada'));
+      if (x.stance === r.stance_atual) nm.append(h('span', 'dp-tag', 'sua atual'));
+      const bars = h('div', 'dp-bars');
+      bars.append(line(x.stance === r.stance_melhor ? 'dp-bar-b' : 'dp-bar-a', (x.dps / max) * 70, NF(x.dps)));
+      row.append(nm, bars, h('div', 'dp-delta', x.dps === max ? '' : PCT((x.dps / max - 1) * 100, 2)));
+      return row;
+    });
+    el.replaceChildren(ban, ...frag, tip);
+    tips(el, tip);
+  });
+
+  /* ---- composição ---- */
+  dash.draw('comp', (el) => {
+    if (!gate(el, ['sources', 'runs'])) return;
+    const r = cur();
+    const rows = rowsOf('sources', r.run);
+    const col = colorOf(rows);
+    const tot = (b) => d3.sum(rows.filter((x) => x.build === b), (x) => x.dps);
+    const mx = Math.max(tot('atual'), tot('melhor')) || 1;
+    const tip = mkTip();
+    const wrap = h('div');
+    [['atual', 'Atual'], ['melhor', 'Recomendada']].forEach(([b, title]) => {
+      const lab = h('div', 'dp-stk-l'); lab.append(h('span', null, title), h('span', null, NF(tot(b)) + ' DPS'));
+      const st = h('div', 'dp-stack');
+      st.style.width = (tot(b) / mx * 100) + '%';
+      rows.filter((x) => x.build === b).sort((p, q) => q.dps - p.dps).forEach((x) => {
+        const s = h('div', 'dp-seg-s', x.dps / tot(b) > 0.11 ? NF(x.dps / tot(b) * 100, 0) + '%' : '');
+        s.style.flexBasis = (x.dps / tot(b) * 100) + '%';
+        s.style.flexGrow = '0'; s.style.background = col(x.source);
+        s.tabIndex = 0;
+        s.setAttribute('data-tip', `${x.source}\n${NF(x.dps)} DPS (${NF(x.dps / tot(b) * 100)}%)`);
+        dim(s, x.source);
+        s.onclick = () => toggleFocus(x.source);
+        s.onkeydown = (e) => keyClick(e, () => toggleFocus(x.source));
+        st.append(s);
+      });
+      wrap.append(lab, st);
+    });
+    const chips = h('div', 'dp-chips');
+    [...new Set(rows.map((x) => x.source))].sort().forEach((n) => {
+      const c = h('button', 'dp-chip'); c.type = 'button';
+      c.setAttribute('aria-pressed', String(focus() === n));
+      const d = h('i', 'dp-dot'); d.style.background = col(n);
+      c.append(d, n); dim(c, n);
+      c.onclick = () => toggleFocus(n);
+      chips.append(c);
+    });
+    el.replaceChildren(wrap, chips, tip);
+    tips(el, tip);
+  });
+
+  /* ---- dano por fonte ---- */
+  dash.draw('sources', (el) => {
+    if (!gate(el, ['sources'])) return;
+    const r = cur();
+    const rows = rowsOf('sources', r.run);
+    const col = colorOf(rows);
+    const names = [...new Set(rows.map((x) => x.source))];
+    const get = (n, b) => { const x = rows.find((y) => y.source === n && y.build === b); return x ? x.dps : null; };
+    const list = names.map((n) => ({ n, a: get(n, 'atual'), b: get(n, 'melhor') }));
+    list.forEach((x) => { x.d = (x.b || 0) - (x.a || 0); });
+    list.sort(P('sort') === 'mudanca' ? (x, y) => Math.abs(y.d) - Math.abs(x.d) : (x, y) => Math.max(y.a || 0, y.b || 0) - Math.max(x.a || 0, x.b || 0));
+    const diffMode = P('mode') === 'diferenca';
+    const max = d3.max(list, (x) => Math.max(x.a || 0, x.b || 0)) || 1;
+    const maxD = d3.max(list, (x) => Math.abs(x.d)) || 1;
+    const tip = mkTip();
+    const frag = list.map((x) => {
+      const row = h('div', 'dp-row dp-click');
+      row.tabIndex = 0;
+      row.setAttribute('data-tip', `${x.n}\nAtual: ${x.a == null ? 'fora da rotação' : NF(x.a)}\nRecomendada: ${x.b == null ? 'fora da rotação' : NF(x.b)}\nDiferença: ${SG(x.d)}`);
+      const nm = h('div', 'dp-name'); const dt = h('i', 'dp-dot'); dt.style.background = col(x.n); nm.append(dt, x.n);
+      const bars = h('div', 'dp-bars');
+      if (diffMode) {
+        const dv = h('div', 'dp-div');
+        const w = Math.abs(x.d) / maxD * 48;
+        const b = bar(x.d >= 0 ? 'dp-bar-b' : 'dp-bar-a', Math.max(w, 0.8), x.d >= 0 ? col(x.n) : null);
+        b.style[x.d >= 0 ? 'left' : 'right'] = '50%'; b.style.transformOrigin = x.d >= 0 ? 'left' : 'right';
+        dv.append(b); bars.append(dv);
+      } else {
+        bars.append(line('dp-bar-a', x.a == null ? 0 : (x.a / max) * 70, x.a == null ? '—' : NF(x.a)), line('dp-bar-b', x.b == null ? 0 : (x.b / max) * 70, x.b == null ? '—' : NF(x.b), col(x.n)));
+      }
+      row.append(nm, bars, h('div', 'dp-delta', SG(x.d)));
+      dim(row, x.n);
+      row.onclick = () => toggleFocus(x.n);
+      row.onkeydown = (e) => keyClick(e, () => toggleFocus(x.n));
+      return row;
+    });
+    el.replaceChildren(...frag, tip);
+    tips(el, tip);
+  });
+
+  /* ---- blocos ---- */
+  dash.draw('blocks', (el) => {
+    if (!gate(el, ['blocks'])) return;
+    const r = cur();
+    const rows = rowsOf('blocks', r.run).sort((a, b) => b.loss_pct - a.loss_pct);
+    const max = d3.max(rows, (x) => x.loss_pct) || 1;
+    const tip = mkTip();
+    const frag = rows.map((x) => {
+      const row = h('div', 'dp-row');
+      row.setAttribute('data-tip', `${x.block}\nDPS sem o bloco: ${NF(x.dps_without)}\nPerda: ${NF(x.loss_pct, 2)}%`);
+      const bars = h('div', 'dp-bars');
+      bars.append(line('dp-bar-b', (x.loss_pct / max) * 70, x.loss_pct > 0 ? `${NF(x.dps_without)} DPS sem ele` : 'sem efeito'));
+      row.append(h('div', 'dp-name', x.block), bars, h('div', 'dp-delta', x.loss_pct > 0 ? '−' + NF(x.loss_pct, 2) + '%' : '0,00%'));
+      return row;
+    });
+    el.replaceChildren(...frag, tip);
+    tips(el, tip);
+  });
+
+  /* ---- densidade ---- */
+  dash.draw('density', (el) => {
+    if (!gate(el, ['density', 'runs'])) return;
+    const r = cur();
+    const rows = rowsOf('density', r.run).sort((a, b) => a.density - b.density);
+    const max = d3.max(rows, (x) => Math.max(x.atual, x.melhor)) || 1;
+    const tip = mkTip();
+    const frag = rows.map((x) => {
+      const row = h('div', 'dp-row');
+      row.setAttribute('data-tip', `${x.density} monstros\nAtual: ${NF(x.atual)}\nRecomendada: ${NF(x.melhor)}\nGanho: ${PCT(x.gain_pct)}`);
+      const nm = h('div', 'dp-name');
+      const t = h('div', null, `${x.density} monstros`);
+      if (x.density === r.density) t.append(h('small', null, 'densidade da hunt'));
+      nm.append(t);
+      const bars = h('div', 'dp-bars');
+      bars.append(line('dp-bar-a', (x.atual / max) * 70, NF(x.atual)), line('dp-bar-b', (x.melhor / max) * 70, NF(x.melhor)));
+      row.append(nm, bars, h('div', 'dp-delta dp-up', PCT(x.gain_pct)));
+      return row;
+    });
+    el.replaceChildren(...frag, tip);
+    tips(el, tip);
+  });
+
+  /* ---- alternativas ---- */
+  dash.draw('alts', (el) => {
+    if (!gate(el, ['alternatives'])) return;
+    const r = cur();
+    const rows = rowsOf('alternatives', r.run).sort((a, b) => a.rank - b.rank);
+    const t = h('table', 'dp-tbl');
+    thead(t, ['#', 'DPS', 'vs melhor', 'Estágios', 'Rotação'], [1, 2]);
+    const tb = h('tbody');
+    rows.forEach((x) => {
+      const tr = h('tr');
+      tr.append(h('td', null, String(x.rank)), h('td', 'dp-n', NF(x.dps)), h('td', 'dp-n', x.vs_best_pct === 0 ? 'melhor' : PCT(x.vs_best_pct, 2)), h('td', null, x.stages), h('td', null, x.rotation));
+      tb.append(tr);
+    });
+    t.append(tb);
+    el.replaceChildren(t);
+  });
+
+  /* ---- wheel ---- */
+  dash.draw('wheel', (el) => {
+    if (!gate(el, ['wheel', 'runs'])) return;
+    const r = cur();
+    const rows = rowsOf('wheel', r.run);
+    const pts = (b, i, j) => { const c = rows.find((x) => x.build === b && x.row === i && x.col === j); return c ? c.pts : 0; };
+    const tip = mkTip();
+    const box = h('div', 'dp-wheels');
+    [['atual', 'Atual', r.stages_atual, r.wheel_bonus_atual], ['melhor', 'Recomendada', r.stages_melhor, r.wheel_bonus_melhor]].forEach(([b, title, stages, bonus]) => {
+      const col = h('div');
+      col.append(h('div', 'dp-wh-t', title));
+      const g = h('div', 'dp-wh');
+      [['TL', 0, 0], ['TR', 0, 3], ['BL', 3, 0], ['BR', 3, 3]].forEach(([name, r0, c0]) => {
+        const q = h('div', 'dp-q');
+        q.append(h('span', 'dp-ql', name));
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+          const v = pts(b, r0 + i, c0 + j), o = pts('atual', r0 + i, c0 + j);
+          const c = h('div', 'dp-c' + (b === 'melhor' && v !== o ? ' dp-diff' : ''), v ? String(v) : '');
+          c.style.background = `color-mix(in srgb, ${accent()} ${Math.round((v / 200) * 70)}%, transparent)`;
+          c.setAttribute('data-tip', `${name} · linha ${i + 1}, coluna ${j + 1}\n${v} pts${b === 'melhor' ? ` (atual: ${o})` : ''}`);
+          q.append(c);
+        }
+        g.append(q);
+      });
+      const s = h('div', 'dp-wh-s');
+      s.append(h('span', null, `Estágios: ${stages}`), h('span', null, `Bônus de dano e cura: ${bonus}%`));
+      if (b === 'melhor') {
+        s.append(h('span', null, `Gemas: ${r.gem_set}`));
+        const cl = h('span', null, 'Código: '); cl.append(h('code', null, r.wheel_code)); s.append(cl);
+      }
+      col.append(g, s);
+      box.append(col);
+    });
+    el.replaceChildren(box, tip);
+    tips(el, tip);
+  });
+
+  /* ---- rotação ---- */
+  dash.draw('rotation', (el) => {
+    if (!gate(el, ['rotation'])) return;
+    const r = cur();
+    const rows = rowsOf('rotation', r.run);
+    const side = (b) => rows.filter((x) => x.build === b).sort((x, y) => x.pos - y.pos);
+    const a = side('atual'), m = side('melhor');
+    const mk = (title, list, other, tagText) => {
+      const col = h('div');
+      col.append(h('h4', null, title));
+      const fl = h('div', 'dp-flow');
+      list.forEach((x) => {
+        const st = h('div', 'dp-step');
+        const nm = h('b', null, x.spell);
+        st.append(h('span', 'dp-num', String(x.pos)), nm);
+        if (!other.some((y) => y.spell === x.spell)) st.append(h('span', 'dp-tag', tagText));
+        st.append(h('span', 'dp-mob', `≥ ${x.mobs} monstros`));
+        fl.append(st);
+      });
+      col.append(fl);
+      return col;
+    };
+    const w = h('div', 'dp-two');
+    w.append(mk('Atual', a, m, 'sai'), mk('Recomendada', m, a, 'nova'));
+    el.replaceChildren(w);
+  });
+
+  /* ---- charms ---- */
+  dash.draw('charms', (el) => {
+    if (!gate(el, ['charms'])) return;
+    const r = cur();
+    const rows = rowsOf('charms', r.run).sort((a, b) => b.ratio_pct - a.ratio_pct);
+    const t = h('table', 'dp-tbl');
+    thead(t, ['Criatura', 'Mortes', 'Atual', 'Recomendado'], [1]);
+    const tb = h('tbody');
+    rows.forEach((x) => {
+      const tr = h('tr', x.charm_atual !== x.charm_melhor ? 'dp-chg' : null);
+      tr.append(h('td', null, x.creature), h('td', 'dp-n', NF(x.ratio_pct) + '%'), h('td', null, x.charm_atual), h('td', null, x.charm_melhor));
+      tb.append(tr);
+    });
+    t.append(tb);
+    el.replaceChildren(t);
+  });
+
+  /* ---- proficiência ---- */
+  dash.draw('prof', (el) => {
+    if (!gate(el, ['proficiency'])) return;
+    const r = cur();
+    const rows = rowsOf('proficiency', r.run).sort((a, b) => a.level - b.level);
+    const t = h('table', 'dp-tbl');
+    thead(t, ['Nível', 'Atual', 'Recomendada']);
+    const tb = h('tbody');
+    rows.forEach((x) => {
+      const tr = h('tr', x.mudou ? 'dp-chg' : null);
+      tr.append(h('td', null, 'L' + x.level), h('td', null, x.atual), h('td', null, x.melhor));
+      tb.append(tr);
+    });
+    t.append(tb);
+    el.replaceChildren(t);
+  });
+
+  /* ---- execuções ---- */
+  dash.draw('runs', (el) => {
+    if (!gate(el, ['runs'])) return;
+    const sel = cur();
+    const rows = dash.data('runs').data;
+    const t = h('table', 'dp-tbl');
+    thead(t, ['Execução', 'Atual', 'Recomendada', 'Ganho', 'Monstros', 'Modo', 'Postura'], [1, 2, 3, 4]);
+    const tb = h('tbody');
+    rows.forEach((x) => {
+      const tr = h('tr', 'dp-pick');
+      tr.tabIndex = 0;
+      tr.setAttribute('aria-current', String(x.run === sel.run));
+      tr.append(h('td', null, x.label), h('td', 'dp-n', NF(x.dps_atual)), h('td', 'dp-n', NF(x.dps_melhor)), h('td', 'dp-n dp-up', PCT(x.gain_pct)), h('td', 'dp-n', NF(x.density, 0)), h('td', null, x.mode), h('td', null, x.stance_melhor));
+      const pick = () => dash.setParams({ run: x.run });
+      tr.onclick = pick;
+      tr.onkeydown = (e) => keyClick(e, pick);
+      tb.append(tr);
+    });
+    t.append(tb);
+    el.replaceChildren(t);
+  });
+})();
+</script>
+<script>dash.__start();</script>
+</body></html>
